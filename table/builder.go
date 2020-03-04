@@ -117,29 +117,16 @@ func NewTableBuilder(opts Options) *Builder {
 	}
 	return b
 }
-
-var slicePool = sync.Pool{
-	New: func() interface{} {
-		// Make 4 KB blocks for reuse.
-		b := make([]byte, 0, 4<<10)
-		return &b
-	},
-}
-
 func (b *Builder) handleBlock() {
 	defer b.wg.Done()
 	for item := range b.blockChan {
 		// Extract the block.
 		blockBuf := item.data[item.start:item.end]
-		var dst *[]byte
 		// Compress the block.
 		if b.opt.Compression != options.None {
 			var err error
 
-			dst = slicePool.Get().(*[]byte)
-			*dst = (*dst)[:0]
-
-			blockBuf, err = b.compressData(*dst, blockBuf)
+			blockBuf, err = b.compressData(nil, blockBuf)
 			y.Check(err)
 		}
 		if b.shouldEncrypt() {
@@ -165,10 +152,6 @@ func (b *Builder) handleBlock() {
 
 		// Fix the boundary of the block.
 		item.end = item.start + uint32(len(blockBuf))
-
-		if dst != nil {
-			slicePool.Put(dst)
-		}
 	}
 }
 
